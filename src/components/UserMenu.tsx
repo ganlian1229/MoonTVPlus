@@ -41,6 +41,17 @@ import { createPortal } from 'react-dom';
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
 import { clearAllDanmakuCache, getDanmakuCacheStats } from '@/lib/danmaku/api';
 import { SAVE_LIVE_PLAY_RECORDS_KEY } from '@/lib/db.client';
+import {
+  LIVE_SOURCE_COOKIE_NAME,
+  LIVE_SOURCE_STORAGE_KEY,
+} from '@/lib/live-source-config';
+import {
+  normalizePlaybackSourceSet,
+  PLAYBACK_SOURCE_SET_COOKIE_NAME,
+  PLAYBACK_SOURCE_SET_OPTIONS,
+  PLAYBACK_SOURCE_SET_STORAGE_KEY,
+  PlaybackSourceSet,
+} from '@/lib/playback-source-set';
 import { clearBangumiImageFallbackCache } from '@/lib/utils';
 import { CURRENT_VERSION } from '@/lib/version';
 import { UpdateStatus } from '@/lib/version_check';
@@ -276,7 +287,11 @@ export const UserMenu: React.FC = () => {
   const [isBufferSectionOpen, setIsBufferSectionOpen] = useState(false);
   const [isDanmakuSectionOpen, setIsDanmakuSectionOpen] = useState(false);
   const [isHomepageSectionOpen, setIsHomepageSectionOpen] = useState(false);
-
+  // 播放源配置集及其折叠面板状态，默认使用 config.json。
+  const [playbackSourceSet, setPlaybackSourceSet] =
+    useState<PlaybackSourceSet>('default');
+  const [isPlaybackSourceSectionOpen, setIsPlaybackSourceSectionOpen] =
+    useState(false);
   // 首页模块配置
   interface HomeModule {
     id: string;
@@ -605,6 +620,12 @@ export const UserMenu: React.FC = () => {
   // 从 localStorage 读取设置
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      const savedPlaybackSourceSet = normalizePlaybackSourceSet(
+        localStorage.getItem(PLAYBACK_SOURCE_SET_STORAGE_KEY)
+      );
+      setPlaybackSourceSet(savedPlaybackSourceSet);
+      document.cookie = `${PLAYBACK_SOURCE_SET_COOKIE_NAME}=${savedPlaybackSourceSet}; Path=/; Max-Age=31536000; SameSite=Lax`;
+
       const savedAggregateSearch = localStorage.getItem(
         'defaultAggregateSearch'
       );
@@ -2081,6 +2102,37 @@ export const UserMenu: React.FC = () => {
     }
   };
 
+  /**
+   * 保存当前播放源配置集，并清理只在本次标签页使用的搜索缓存。
+   * Cookie 供服务端 API 选择配置文件，localStorage 供设置弹窗下次打开时回显。
+   */
+  const persistPlaybackSourceSet = (value: PlaybackSourceSet) => {
+    setPlaybackSourceSet(value);
+
+    if (typeof window === 'undefined') return;
+
+    localStorage.setItem(PLAYBACK_SOURCE_SET_STORAGE_KEY, value);
+    document.cookie = `${PLAYBACK_SOURCE_SET_COOKIE_NAME}=${value}; Path=/; Max-Age=31536000; SameSite=Lax`;
+
+    for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
+      const key = sessionStorage.key(index);
+      if (key?.startsWith('search_cache_')) {
+        sessionStorage.removeItem(key);
+      }
+    }
+  };
+
+  /**
+   * 处理用户主动切换播放源配置集。
+   * 保存完成后刷新当前页面，确保正在显示的搜索结果不会继续引用上一套配置。
+   */
+  const handlePlaybackSourceSetChange = (value: PlaybackSourceSet) => {
+    if (value === playbackSourceSet) return;
+
+    persistPlaybackSourceSet(value);
+    window.location.reload();
+  };
+
   // 获取感谢信息
   const getThanksInfo = (dataSource: string) => {
     switch (dataSource) {
@@ -2118,6 +2170,7 @@ export const UserMenu: React.FC = () => {
     const defaultAnimeBaseUrl = '';
     const defaultAnimeImageBaseUrl = '';
 
+    persistPlaybackSourceSet('default');
     setDefaultAggregateSearch(true);
     setSaveLivePlayRecords(false);
     setEnableOptimization(true);
@@ -2155,6 +2208,8 @@ export const UserMenu: React.FC = () => {
 
     if (typeof window !== 'undefined') {
       localStorage.setItem('defaultAggregateSearch', JSON.stringify(true));
+      localStorage.removeItem(LIVE_SOURCE_STORAGE_KEY);
+      document.cookie = `${LIVE_SOURCE_COOKIE_NAME}=; Path=/; Max-Age=0; SameSite=Lax`;
       localStorage.setItem(SAVE_LIVE_PLAY_RECORDS_KEY, 'false');
       localStorage.setItem('enableOptimization', JSON.stringify(true));
       localStorage.setItem('preferStrategy', 'fast');
@@ -2504,6 +2559,98 @@ export const UserMenu: React.FC = () => {
 
           {/* 设置项 */}
           <div className='space-y-3 md:space-y-4'>
+            {/* 播放源设置 */}
+            <div className='overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700'>
+              <button
+                type='button'
+                onClick={() =>
+                  setIsPlaybackSourceSectionOpen(
+                    !isPlaybackSourceSectionOpen
+                  )
+                }
+                className='flex w-full items-center justify-between bg-gray-50 px-3 py-2.5 transition-colors hover:bg-gray-100 dark:bg-gray-800 dark:hover:bg-gray-750 md:px-4 md:py-3'
+              >
+                <div className='flex items-center gap-2'>
+                  <Rss className='h-5 w-5 text-gray-600 dark:text-gray-400' />
+                  <h3 className='text-base font-semibold text-gray-800 dark:text-gray-200'>
+                    播放源设置
+                  </h3>
+                </div>
+                {isPlaybackSourceSectionOpen ? (
+                  <ChevronUp className='h-5 w-5 text-gray-600 dark:text-gray-400' />
+                ) : (
+                  <ChevronDown className='h-5 w-5 text-gray-600 dark:text-gray-400' />
+                )}
+              </button>
+
+              {isPlaybackSourceSectionOpen && (
+                <div
+                  className='space-y-3 p-3 md:p-4'
+                  role='radiogroup'
+                  aria-label='播放源配置集'
+                >
+                  <div>
+                    <h4 className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                      选择播放源配置
+                    </h4>
+                    <p className='mt-1 text-xs text-gray-500 dark:text-gray-400'>
+                      默认使用 config.json，切换后页面会自动刷新并使用所选配置。
+                    </p>
+                  </div>
+
+                  <div className='space-y-2'>
+                    {PLAYBACK_SOURCE_SET_OPTIONS.map((option) => {
+                      const selected = playbackSourceSet === option.value;
+
+                      return (
+                        <button
+                          key={option.value}
+                          type='button'
+                          role='radio'
+                          aria-checked={selected}
+                          onClick={() =>
+                            handlePlaybackSourceSetChange(option.value)
+                          }
+                          className={`flex w-full items-start justify-between gap-3 rounded-lg border px-3 py-3 text-left transition-colors ${
+                            selected
+                              ? 'border-green-500 bg-green-50 text-green-700 dark:border-green-500 dark:bg-green-900/20 dark:text-green-300'
+                              : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-600 dark:hover:bg-gray-800'
+                          }`}
+                        >
+                          <span className='min-w-0'>
+                            <span className='flex items-center gap-2 text-sm font-medium'>
+                              {option.label}
+                              <code className='rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-normal text-gray-500 dark:bg-gray-800 dark:text-gray-400'>
+                                {option.fileName}
+                              </code>
+                            </span>
+                            <span className='mt-1 block text-xs text-gray-500 dark:text-gray-400'>
+                              {option.description}
+                            </span>
+                          </span>
+                          <span
+                            className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border ${
+                              selected
+                                ? 'border-green-500 bg-green-500 text-white'
+                                : 'border-gray-300 text-transparent dark:border-gray-600'
+                            }`}
+                          >
+                            <Check className='h-3.5 w-3.5' />
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {playbackSourceSet === 'adult' && (
+                    <p className='rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 dark:border-amber-900/60 dark:bg-amber-900/20 dark:text-amber-300'>
+                      成人播放源仅限成年人主动使用，第三方内容的合法性与稳定性需自行确认。
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+
             {/* 豆瓣设置 */}
             <div className='border border-gray-200 dark:border-gray-700 rounded-lg overflow-visible'>
               <button

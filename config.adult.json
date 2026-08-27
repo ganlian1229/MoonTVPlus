@@ -1,0 +1,35 @@
+{
+  "cache_time": 7200,
+  "api_site": {
+    "aosikazy": {
+      "api": "https://aosikazy.com/api.php/provide/vod",
+      "name": "AV-奥斯卡资源",
+      "detail": "https://aosikazy.com",
+      "is_adult": true
+    },
+    "apiyutu": {
+      "api": "https://apiyutu.com/api.php/provide/vod",
+      "name": "AV-玉兔资源",
+      "detail": "https://apiyutu.com",
+      "is_adult": true
+    },
+    "jingpinx": {
+      "api": "https://www.jingpinx.com/api.php/provide/vod",
+      "name": "AV-精品资源",
+      "detail": "https://www.jingpinx.com",
+      "is_adult": true
+    },
+    "naixxzy": {
+      "api": "https://Naixxzy.com/api.php/provide/vod",
+      "name": "AV-奶香香",
+      "detail": "https://Naixxzy.com",
+      "is_adult": true
+    },
+    "xrbsp": {
+      "api": "https://www.xrbsp.com/api/json.php",
+      "name": "AV-成人资源",
+      "detail": "https://www.xrbsp.com",
+      "is_adult": true
+    }
+  }
+}

@@ -1,0 +1,192 @@
+{
+  "cache_time": 7200,
+  "api_site": {
+    "bdzy": {
+      "api": "https://api.1080zyku.com/inc/apijson_vod.php",
+      "name": "百度资源",
+      "source_repo": "katelya77/KatelyaTV",
+      "candidate": true
+    },
+    "1080zyku": {
+      "api": "https://api.1080zyku.com/inc/apijson.php",
+      "name": "1080zyku",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "apibdzy": {
+      "api": "https://api.apibdzy.com/api.php/provide/vod",
+      "name": "apibdzy",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "ffzynew": {
+      "api": "https://api.ffzyapi.com/api.php/provide/vod",
+      "name": "ffzynew",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "lzzy": {
+      "api": "https://api.liangzizy.com/inc/apijson_vod.php",
+      "name": "量子资源",
+      "source_repo": "katelya77/KatelyaTV",
+      "candidate": true
+    },
+    "wujinapi_cc": {
+      "api": "https://api.wujinapi.cc/api.php/provide/vod",
+      "name": "wujinapi_cc",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "wujinapi_com": {
+      "api": "https://api.wujinapi.com/api.php/provide/vod",
+      "name": "wujinapi_com",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "wujinapi_net": {
+      "api": "https://api.wujinapi.net/api.php/provide/vod",
+      "name": "wujinapi_net",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "wwzy_api": {
+      "api": "https://api.wwzy.tv/api.php/provide/vod",
+      "name": "wwzy_api",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "ykzy": {
+      "api": "https://api.yongjiuzy.cc/provide/vod",
+      "name": "永久资源",
+      "source_repo": "katelya77/KatelyaTV",
+      "candidate": true
+    },
+    "maotaizy": {
+      "api": "https://caiji.maotaizy.cc/api.php/provide/vod",
+      "name": "茅台资源",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "ffzyapi": {
+      "api": "https://cj.ffzyapi.com/api.php/provide/vod",
+      "name": "ffzyapi",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "ruyi": {
+      "api": "https://cj.rycjapi.com/api.php/provide/vod",
+      "name": "如意资源",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "dbzy": {
+      "api": "https://dbzy.tv/api.php/provide/vod",
+      "name": "豆瓣资源",
+      "source_repo": "samqin123/MoonTV",
+      "candidate": true
+    },
+    "ffzy": {
+      "api": "https://ffzyapi.com/api.php/provide/vod",
+      "name": "非凡资源",
+      "source_repo": "katelya77/KatelyaTV",
+      "candidate": true
+    },
+    "hhzyapi": {
+      "api": "https://hhzyapi.com/api.php/provide/vod",
+      "name": "hhzyapi",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "hnzy": {
+      "api": "https://hnzyapi.com/api.php/provide/vod",
+      "name": "火鸟资源",
+      "source_repo": "katelya77/KatelyaTV",
+      "candidate": true
+    },
+    "aqy": {
+      "api": "https://iqiyizyapi.com/api.php/provide/vod",
+      "name": "爱奇艺资源",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "jinyingzy": {
+      "api": "https://jinyingzy.com/api.php/provide/vod",
+      "name": "jinyingzy",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "heimuer": {
+      "api": "https://json.heimuer.xyz/api.php/provide/vod",
+      "name": "黑木耳",
+      "detail": "https://heimuer.tv",
+      "source_repo": "samqin123/MoonTV",
+      "candidate": true
+    },
+    "jyzyapi_provide": {
+      "api": "https://jyzyapi.com/provide/vod",
+      "name": "jyzyapi_provide",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "yinghua": {
+      "api": "https://m3u8.apiyhzy.com/api.php/provide/vod",
+      "name": "樱花资源",
+      "source_repo": "dcx528/MoonTV-app",
+      "candidate": true
+    },
+    "mozhua": {
+      "api": "https://mozhuazy.com/api.php/provide/vod",
+      "name": "魔爪资源",
+      "source_repo": "samqin123/MoonTV",
+      "candidate": true
+    },
+    "subocaiji": {
+      "api": "https://subocaiji.com/api.php/provide/vod",
+      "name": "subocaiji",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "tyyszy": {
+      "api": "https://tyyszy.com/api.php/provide/vod",
+      "name": "天涯资源",
+      "source_repo": "dcx528/MoonTV-app",
+      "candidate": true
+    },
+    "maotai": {
+      "api": "https://tyyszyapi.com/api.php/provide/vod/",
+      "name": "天涯影视",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "wolong": {
+      "api": "https://wolongzyw.com/api.php/provide/vod",
+      "name": "卧龙资源",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "hongniuzy3": {
+      "api": "https://www.hongniuzy3.com/api.php/provide/vod",
+      "name": "hongniuzy3",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "subo": {
+      "api": "https://www.subocaiji.com/api.php/provide/vod",
+      "name": "速播",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "wwzy": {
+      "api": "https://wwzy.tv/api.php/provide/vod",
+      "name": "旺旺短剧",
+      "source_repo": "xiqiuqiu/KatelyaTVLocal",
+      "candidate": true
+    },
+    "xiaomaomi": {
+      "api": "https://zy.xmm.hk/api.php/provide/vod",
+      "name": "小猫咪资源",
+      "source_repo": "samqin123/MoonTV",
+      "candidate": true
+    }
+  }
+}

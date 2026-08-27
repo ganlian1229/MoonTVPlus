@@ -3,10 +3,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getAvailableApiSites, getCacheTime, getConfig } from '@/lib/config';
+import { getAvailableApiSites, getConfig } from '@/lib/config';
 import { getDetailFromApiV2 } from '@/lib/downstream';
 import { getProxyToken } from '@/lib/emby-token';
-import { hasFeaturePermission } from '@/lib/permissions';
 import {
   createBaiduNetdiskSession,
   getBaiduNetdiskSession,
@@ -20,17 +19,17 @@ import {
   refreshMobileNetdiskSession,
 } from '@/lib/netdisk/mobile-session-cache';
 import {
-  createPan123NetdiskSession,
-  getPan123NetdiskSession,
-  parsePan123NetdiskId,
-  refreshPan123NetdiskSession,
-} from '@/lib/netdisk/pan123-session-cache';
-import {
   createPan115NetdiskSession,
   getPan115NetdiskSession,
   parsePan115NetdiskId,
   refreshPan115NetdiskSession,
 } from '@/lib/netdisk/pan115-session-cache';
+import {
+  createPan123NetdiskSession,
+  getPan123NetdiskSession,
+  parsePan123NetdiskId,
+  refreshPan123NetdiskSession,
+} from '@/lib/netdisk/pan123-session-cache';
 import {
   createQuarkNetdiskSession,
   getQuarkNetdiskSession,
@@ -38,6 +37,7 @@ import {
   refreshQuarkNetdiskSession,
 } from '@/lib/netdisk/quark-session-cache';
 import {
+  isNetdiskSource,
   LEGACY_QUARK_TEMP_SOURCE,
   NETDISK_115_SOURCE,
   NETDISK_123_SOURCE,
@@ -46,7 +46,6 @@ import {
   NETDISK_QUARK_SOURCE,
   NETDISK_TIANYI_SOURCE,
   NETDISK_UC_SOURCE,
-  isNetdiskSource,
   normalizeNetdiskSource,
 } from '@/lib/netdisk/source';
 import {
@@ -61,6 +60,11 @@ import {
   parseUCNetdiskId,
   refreshUCNetdiskSession,
 } from '@/lib/netdisk/uc-session-cache';
+import { hasFeaturePermission } from '@/lib/permissions';
+import {
+  getPlaybackSourceSetFromCookieValue,
+  PLAYBACK_SOURCE_SET_COOKIE_NAME,
+} from '@/lib/playback-source-set';
 import {
   executeSavedSourceScript,
   normalizeScriptDetailResult,
@@ -168,6 +172,9 @@ function formatNetdiskEpisodeTitle(
  * 这个API专门用于play页面快速获取当前源的详情
  */
 export async function GET(request: NextRequest) {
+  const playbackSourceSet = getPlaybackSourceSetFromCookieValue(
+    request.cookies.get(PLAYBACK_SOURCE_SET_COOKIE_NAME)?.value
+  );
   const authInfo = getAuthInfoFromCookie(request);
   if (!authInfo || !authInfo.username) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -1283,7 +1290,11 @@ export async function GET(request: NextRequest) {
 
   // 对于其他采集源，直接按 id 获取详情。
   try {
-    const apiSites = await getAvailableApiSites(authInfo.username, includeSpecialSources);
+    const apiSites = await getAvailableApiSites(
+      authInfo.username,
+      includeSpecialSources,
+      playbackSourceSet
+    );
     const apiSite = apiSites.find((site) => site.key === sourceCode);
 
     if (!apiSite) {
@@ -1311,25 +1322,11 @@ export async function GET(request: NextRequest) {
         adminConfig.ClientAdSourceApis
       ) || resultWithProxy.episodes;
 
-    const cacheTime = await getCacheTime();
-
-    // 同一源在不同 UA 下 episodes 可能不同，避免 CDN/共享缓存串号
-    if (clientAdEnabled) {
-      return NextResponse.json(resultWithProxy, {
-        headers: {
-          'Cache-Control': 'private, no-store',
-          Vary: 'User-Agent',
-          'Netlify-Vary': 'query',
-        },
-      });
-    }
-
+    // 结果依赖浏览器选择的播放源配置和 UA，禁止 CDN 在用户之间共享详情。
     return NextResponse.json(resultWithProxy, {
       headers: {
-        'Cache-Control': `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
-        'CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-        'Vercel-CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-        'Netlify-Vary': 'query',
+        'Cache-Control': 'private, no-store',
+        Vary: clientAdEnabled ? 'Cookie, User-Agent' : 'Cookie',
       },
     });
   } catch (error) {

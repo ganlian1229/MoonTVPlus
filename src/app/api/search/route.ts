@@ -3,10 +3,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getAvailableApiSites, getCacheTime, getConfig } from '@/lib/config';
+import { getAvailableApiSites, getConfig } from '@/lib/config';
 import { searchFromApi } from '@/lib/downstream';
 import { getProxyToken } from '@/lib/emby-token';
 import { hasFeaturePermission } from '@/lib/permissions';
+import {
+  normalizePlaybackSourceSet,
+  PLAYBACK_SOURCE_SET_COOKIE_NAME,
+} from '@/lib/playback-source-set';
 import {
   executeSavedSourceScript,
   listEnabledSourceScripts,
@@ -27,17 +31,16 @@ export async function GET(request: NextRequest) {
   const query = searchParams.get('q');
   const includeSpecialSources = searchParams.get('special') === '1';
   const privateOnly = searchParams.get('privateOnly') === '1';
+  const playbackSourceSet = normalizePlaybackSourceSet(
+    request.cookies.get(PLAYBACK_SOURCE_SET_COOKIE_NAME)?.value
+  );
 
   if (!query) {
-    const cacheTime = await getCacheTime();
     return NextResponse.json(
       { results: [] },
       {
         headers: {
-          'Cache-Control': `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
-          'CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-          'Vercel-CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-          'Netlify-Vary': 'query',
+          'Cache-Control': 'private, no-store',
         },
       }
     );
@@ -46,7 +49,11 @@ export async function GET(request: NextRequest) {
   const config = await getConfig();
   const apiSites = privateOnly
     ? []
-    : await getAvailableApiSites(authInfo.username, includeSpecialSources);
+    : await getAvailableApiSites(
+        authInfo.username,
+        includeSpecialSources,
+        playbackSourceSet
+      );
   const [canAccessOpenList, canAccessEmby] = await Promise.all([
     hasFeaturePermission(authInfo.username, 'private_library'),
     hasFeaturePermission(authInfo.username, 'emby'),
@@ -270,7 +277,10 @@ export async function GET(request: NextRequest) {
       weight: result.weight ?? (weightMap.get(result.source) ?? 0),
     }));
 
-    if (!config.SiteConfig.DisableYellowFilter) {
+    if (
+      playbackSourceSet !== 'adult' &&
+      !config.SiteConfig.DisableYellowFilter
+    ) {
       flattenedResults = flattenedResults.filter((result) => {
         const typeName = result.type_name || '';
         return !yellowWords.some((word: string) => typeName.includes(word));
@@ -284,8 +294,6 @@ export async function GET(request: NextRequest) {
       return weightB - weightA;
     });
 
-    const cacheTime = await getCacheTime();
-
     if (flattenedResults.length === 0) {
       // no cache if empty
       return NextResponse.json({ results: [] }, { status: 200 });
@@ -295,10 +303,7 @@ export async function GET(request: NextRequest) {
       { results: flattenedResults },
       {
         headers: {
-          'Cache-Control': `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
-          'CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-          'Vercel-CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-          'Netlify-Vary': 'query',
+          'Cache-Control': 'private, no-store',
         },
       }
     );

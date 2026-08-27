@@ -7,6 +7,8 @@ import { db } from '@/lib/db';
 
 const SOURCE_SCRIPT_REGISTRY_KEY = 'source-script:registry';
 const DEFAULT_TIMEOUT_MS = 20000;
+const IS_LOCAL_STORAGE_MODE =
+  (process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage') === 'localstorage';
 
 // 绕过 webpack 静态分析，获取真正的 Node.js require
 // eslint-disable-next-line no-eval
@@ -148,9 +150,19 @@ function buildEmptyRegistry(): SourceScriptRegistry {
   return { items: [] };
 }
 
+/**
+ * 加载服务端脚本播放源注册表。
+ * localStorage 模式没有服务端数据库实例，因此直接返回空注册表，避免脚本源读取失败阻断普通 JSON 播放源搜索。
+ */
 async function loadRegistry(): Promise<SourceScriptRegistry> {
   if (_registryCache && Date.now() - _registryCache.ts < REGISTRY_CACHE_TTL_MS) {
     return _registryCache.data;
+  }
+
+  if (IS_LOCAL_STORAGE_MODE) {
+    const empty = buildEmptyRegistry();
+    _registryCache = { data: empty, ts: Date.now() };
+    return empty;
   }
 
   const raw = await db.getGlobalValue(SOURCE_SCRIPT_REGISTRY_KEY);

@@ -1028,14 +1028,16 @@ export class DbManager {
 
   // ---------- 管理员配置 ----------
   async getAdminConfig(): Promise<AdminConfig | null> {
-    if (typeof (this.storage as any).getAdminConfig === 'function') {
+    // localstorage 模式没有服务端存储实例，不能直接访问 null 的方法属性。
+    if (this.storage && typeof (this.storage as any).getAdminConfig === 'function') {
       return (this.storage as any).getAdminConfig();
     }
     return null;
   }
 
   async saveAdminConfig(config: AdminConfig): Promise<void> {
-    if (typeof (this.storage as any).setAdminConfig === 'function') {
+    // 直播源首次加载会更新频道数量；本地存储模式下跳过服务端持久化即可。
+    if (this.storage && typeof (this.storage as any).setAdminConfig === 'function') {
       await (this.storage as any).setAdminConfig(config);
     }
   }

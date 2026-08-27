@@ -50,20 +50,24 @@ import {
 } from '@/lib/db.client';
 import { getDoubanDetail } from '@/lib/douban.client';
 import { isEpisodeHiddenByFilter, normalizeEpisodeFilterConfig } from '@/lib/episode-filter';
-import { appendSpecialSourceParam, isSpecialSourcesEnabledOnDevice } from '@/lib/special-source.client';
 import {
   buildEpisodeProgressContentKey,
   loadLocalEpisodeProgress,
   pruneLocalEpisodeProgressStorage,
   saveLocalEpisodeProgress,
 } from '@/lib/episode-progress';
+import { getIndexedDBVideoPlaybackUrl } from '@/lib/indexeddb-video-cache';
 import { isNetdiskSource, normalizeNetdiskSource } from '@/lib/netdisk/source';
+import {
+  getPlaybackSourceSetCacheToken,
+  PLAYBACK_SOURCE_SET_STORAGE_KEY,
+} from '@/lib/playback-source-set';
 import {
   getRecommendationCache,
   recommendationCacheKeys,
   setRecommendationCache,
 } from '@/lib/recommendations/cache';
-import { getIndexedDBVideoPlaybackUrl } from '@/lib/indexeddb-video-cache';
+import { appendSpecialSourceParam, isSpecialSourcesEnabledOnDevice } from '@/lib/special-source.client';
 import {
   convertSubtitleFileToVttObjectUrl,
   CUSTOM_SUBTITLE_ACCEPT,
@@ -4691,7 +4695,10 @@ function PlayPageClient() {
       }
 
       try {
-        const cacheKey = `search_cache_${query.trim()}${isSpecialSourcesEnabledOnDevice() ? '_special' : ''}`;
+        const sourceSetToken = getPlaybackSourceSetCacheToken(
+          localStorage.getItem(PLAYBACK_SOURCE_SET_STORAGE_KEY)
+        );
+        const cacheKey = `search_cache_${query.trim()}_${sourceSetToken}${isSpecialSourcesEnabledOnDevice() ? '_special' : ''}`;
         const cached = sessionStorage.getItem(cacheKey);
         if (!cached) return null;
 
@@ -4712,7 +4719,10 @@ function PlayPageClient() {
       if (typeof window === 'undefined' || !query.trim()) return;
 
       try {
-        const cacheKey = `search_cache_${query.trim()}${isSpecialSourcesEnabledOnDevice() ? '_special' : ''}`;
+        const sourceSetToken = getPlaybackSourceSetCacheToken(
+          localStorage.getItem(PLAYBACK_SOURCE_SET_STORAGE_KEY)
+        );
+        const cacheKey = `search_cache_${query.trim()}_${sourceSetToken}${isSpecialSourcesEnabledOnDevice() ? '_special' : ''}`;
         const payload: SearchCachePayload = {
           status: 'complete',
           results,

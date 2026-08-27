@@ -5,15 +5,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getAvailableApiSites, getConfig } from '@/lib/config';
 import { searchFromApi } from '@/lib/downstream';
-import { hasFeaturePermission } from '@/lib/permissions';
-import { yellowWords } from '@/lib/yellow';
 import { getProxyToken } from '@/lib/emby-token';
+import { hasFeaturePermission } from '@/lib/permissions';
+import {
+  normalizePlaybackSourceSet,
+  PLAYBACK_SOURCE_SET_COOKIE_NAME,
+} from '@/lib/playback-source-set';
 import {
   executeSavedSourceScript,
   listEnabledSourceScripts,
   normalizeScriptSearchResults,
   normalizeScriptSources,
 } from '@/lib/source-script';
+import { yellowWords } from '@/lib/yellow';
 
 export const runtime = 'nodejs';
 
@@ -27,6 +31,9 @@ export async function GET(request: NextRequest) {
   const query = searchParams.get('q');
   const includeSpecialSources = searchParams.get('special') === '1';
   const privateOnly = searchParams.get('privateOnly') === '1';
+  const playbackSourceSet = normalizePlaybackSourceSet(
+    request.cookies.get(PLAYBACK_SOURCE_SET_COOKIE_NAME)?.value
+  );
 
   if (!query) {
     return new Response(
@@ -43,7 +50,11 @@ export async function GET(request: NextRequest) {
   const config = await getConfig();
   const apiSites = privateOnly
     ? []
-    : await getAvailableApiSites(authInfo.username, includeSpecialSources);
+    : await getAvailableApiSites(
+        authInfo.username,
+        includeSpecialSources,
+        playbackSourceSet
+      );
   const [canAccessOpenList, canAccessEmby] = await Promise.all([
     hasFeaturePermission(authInfo.username, 'private_library'),
     hasFeaturePermission(authInfo.username, 'emby'),
@@ -379,7 +390,10 @@ export async function GET(request: NextRequest) {
 
           // 过滤黄色内容
           let filteredResults = safeResults;
-          if (!config.SiteConfig.DisableYellowFilter) {
+          if (
+            playbackSourceSet !== 'adult' &&
+            !config.SiteConfig.DisableYellowFilter
+          ) {
             filteredResults = safeResults.filter((result) => {
               const typeName = result.type_name || '';
               return !yellowWords.some((word: string) => typeName.includes(word));
@@ -501,7 +515,10 @@ export async function GET(request: NextRequest) {
           );
 
           let filteredResults = sourceResults.flat();
-          if (!config.SiteConfig.DisableYellowFilter) {
+          if (
+            playbackSourceSet !== 'adult' &&
+            !config.SiteConfig.DisableYellowFilter
+          ) {
             filteredResults = filteredResults.filter((result) => {
               const typeName = result.type_name || '';
               return !yellowWords.some((word: string) => typeName.includes(word));

@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { API_CONFIG, getAvailableApiSites, getConfig } from '@/lib/config';
+import {
+  getPlaybackSourceSetFromCookieValue,
+  PLAYBACK_SOURCE_SET_COOKIE_NAME,
+} from '@/lib/playback-source-set';
 import { yellowWords } from '@/lib/yellow';
 
 export const runtime = 'nodejs';
@@ -25,6 +29,9 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const sourceKey = searchParams.get('source');
   const includeSpecialSources = searchParams.get('special') === '1';
+  const playbackSourceSet = getPlaybackSourceSetFromCookieValue(
+    request.cookies.get(PLAYBACK_SOURCE_SET_COOKIE_NAME)?.value
+  );
 
   if (!sourceKey) {
     return NextResponse.json(
@@ -35,7 +42,11 @@ export async function GET(request: NextRequest) {
 
   try {
     const config = await getConfig();
-    const apiSites = await getAvailableApiSites(authInfo.username, includeSpecialSources);
+    const apiSites = await getAvailableApiSites(
+      authInfo.username,
+      includeSpecialSources,
+      playbackSourceSet
+    );
     const targetSite = apiSites.find((site) => site.key === sourceKey);
 
     if (!targetSite) {
@@ -66,7 +77,10 @@ export async function GET(request: NextRequest) {
 
     // 应用黄色过滤器规则
     let filteredCategories = classData.class;
-    if (!config.SiteConfig.DisableYellowFilter) {
+    if (
+      playbackSourceSet !== 'adult' &&
+      !config.SiteConfig.DisableYellowFilter
+    ) {
       filteredCategories = classData.class.filter((item) => {
         const typeName = item.type_name || '';
         return !yellowWords.some((word: string) => typeName.includes(word));

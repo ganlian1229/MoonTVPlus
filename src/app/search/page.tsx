@@ -25,6 +25,7 @@ import { createPortal } from 'react-dom';
 
 import { isAnimeCategoryText } from '@/lib/anime-keyword-expr';
 import { getAuthInfoFromBrowserCookie } from '@/lib/auth';
+import { loadTraditionalToSimplifiedConverter } from '@/lib/danmaku/traditional-to-simplified';
 import {
   addSearchHistory,
   clearSearchHistory,
@@ -32,8 +33,12 @@ import {
   getSearchHistory,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
-import { SearchResult } from '@/lib/types';
+import {
+  getPlaybackSourceSetCacheToken,
+  PLAYBACK_SOURCE_SET_STORAGE_KEY,
+} from '@/lib/playback-source-set';
 import { appendSpecialSourceParam, isSpecialSourcesEnabledOnDevice } from '@/lib/special-source.client';
+import { SearchResult } from '@/lib/types';
 import { processImageUrl } from '@/lib/utils';
 
 import AcgSearch from '@/components/AcgSearch';
@@ -48,7 +53,6 @@ import SearchResultFilter, {
 import SearchSuggestions from '@/components/SearchSuggestions';
 import VideoCard, { VideoCardHandle } from '@/components/VideoCard';
 import VirtualScrollableGrid from '@/components/VirtualScrollableGrid';
-import { loadTraditionalToSimplifiedConverter } from '@/lib/danmaku/traditional-to-simplified';
 
 const PANSOU_CLOUD_TYPE_OPTIONS = Object.entries(CLOUD_TYPE_NAMES).map(
   ([value, label]) => ({ value, label })
@@ -140,6 +144,11 @@ function SearchPageClient() {
   // 生成缓存键
   const getCacheKey = (query: string) => {
     const suffixParts = [
+      getPlaybackSourceSetCacheToken(
+        typeof window !== 'undefined'
+          ? localStorage.getItem(PLAYBACK_SOURCE_SET_STORAGE_KEY)
+          : null
+      ),
       isSpecialSourcesEnabledOnDevice() ? 'special' : '',
       privateLibraryOnly ? 'private' : '',
     ].filter(Boolean);

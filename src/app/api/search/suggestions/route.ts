@@ -6,6 +6,11 @@ import { AdminConfig } from '@/lib/admin.types';
 import { getAuthInfoFromCookie } from '@/lib/auth';
 import { getAvailableApiSites, getConfig } from '@/lib/config';
 import { searchFromApi } from '@/lib/downstream';
+import {
+  getPlaybackSourceSetFromCookieValue,
+  PLAYBACK_SOURCE_SET_COOKIE_NAME,
+  PlaybackSourceSet,
+} from '@/lib/playback-source-set';
 import { yellowWords } from '@/lib/yellow';
 
 export const runtime = 'nodejs';
@@ -19,6 +24,9 @@ export async function GET(request: NextRequest) {
     }
 
     const config = await getConfig();
+    const playbackSourceSet = getPlaybackSourceSetFromCookieValue(
+      request.cookies.get(PLAYBACK_SOURCE_SET_COOKIE_NAME)?.value
+    );
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q')?.trim();
 
@@ -27,19 +35,19 @@ export async function GET(request: NextRequest) {
     }
 
     // 生成建议
-    const suggestions = await generateSuggestions(config, query, authInfo.username);
-
-    // 从配置中获取缓存时间，如果没有配置则使用默认值300秒（5分钟）
-    const cacheTime = config.SiteConfig.SiteInterfaceCacheTime || 300;
+    const suggestions = await generateSuggestions(
+      config,
+      query,
+      authInfo.username,
+      playbackSourceSet
+    );
 
     return NextResponse.json(
       { suggestions },
       {
         headers: {
-          'Cache-Control': `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
-          'CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-          'Vercel-CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-          'Netlify-Vary': 'query',
+          'Cache-Control': 'private, no-store',
+          Vary: 'Cookie',
         },
       }
     );
@@ -49,7 +57,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-async function generateSuggestions(config: AdminConfig, query: string, username: string): Promise<
+async function generateSuggestions(config: AdminConfig, query: string, username: string, sourceSet: PlaybackSourceSet): Promise<
   Array<{
     text: string;
     type: 'exact' | 'related' | 'suggestion';
@@ -58,7 +66,7 @@ async function generateSuggestions(config: AdminConfig, query: string, username:
 > {
   const queryLower = query.toLowerCase();
 
-  const apiSites = await getAvailableApiSites(username);
+  const apiSites = await getAvailableApiSites(username, false, sourceSet);
   let realKeywords: string[] = [];
 
   if (apiSites.length > 0) {
@@ -69,7 +77,14 @@ async function generateSuggestions(config: AdminConfig, query: string, username:
     realKeywords = Array.from(
       new Set(
         results
-          .filter((r: any) => config.SiteConfig.DisableYellowFilter || !yellowWords.some((word: string) => (r.type_name || '').includes(word)))
+          .filter(
+            (r: any) =>
+              sourceSet === 'adult' ||
+              config.SiteConfig.DisableYellowFilter ||
+              !yellowWords.some((word: string) =>
+                (r.type_name || '').includes(word)
+              )
+          )
           .map((r: any) => r.title)
           .filter(Boolean)
           .flatMap((title: string) => title.split(/[ -:：·、-]/))

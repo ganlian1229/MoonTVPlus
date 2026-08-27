@@ -1,10 +1,14 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, no-console, @typescript-eslint/no-non-null-assertion */
 
 import { db } from '@/lib/db';
+import { PlaybackSourceSet } from '@/lib/playback-source-set';
 import { normalizeApiBaseUrl } from '@/lib/url';
 
 import { AdminConfig } from './admin.types';
 import { setServerTmdbImageBaseUrl } from './tmdb-image-base';
+import adultConfig from '../../config.adult.json';
+import candidateConfig from '../../config.candidates.json';
+import builtinConfig from '../../config.json';
 
 const BUILTIN_DANMAKU_API_BASE = 'https://mtvpls-danmu.netlify.app/87654321';
 const DEFAULT_LIVE_REFRESH_INTERVAL_HOURS = 12;
@@ -40,7 +44,7 @@ export interface LiveCfg {
 interface ConfigFileStruct {
   cache_time?: number;
   api_site?: {
-    [key: string]: ApiSite;
+    [key: string]: Omit<ApiSite, 'key'>;
   };
   custom_category?: {
     name?: string;
@@ -52,6 +56,31 @@ interface ConfigFileStruct {
   };
   special_source_apis?: string[];
   specialSourceApis?: string[];
+}
+
+// 项目内置播放源配置集：默认、更多和成人配置分别独立加载，避免搜索结果混用。
+const BUILTIN_SOURCE_CONFIGS: Record<PlaybackSourceSet, ConfigFileStruct> = {
+  default: builtinConfig as ConfigFileStruct,
+  more: candidateConfig as ConfigFileStruct,
+  adult: adultConfig as ConfigFileStruct,
+};
+
+const BUILTIN_SOURCE_CONFIG = BUILTIN_SOURCE_CONFIGS.default;
+
+/**
+ * 将指定内置 JSON 配置转换为搜索层使用的 API 站点数组。
+ * JSON 对象键作为站点 key，其余字段只提取当前下游请求需要的安全字段。
+ */
+function getBuiltinApiSites(sourceSet: PlaybackSourceSet): ApiSite[] {
+  return Object.entries(
+    BUILTIN_SOURCE_CONFIGS[sourceSet].api_site || {}
+  ).map(([key, site]) => ({
+    key,
+    name: site.name,
+    api: site.api,
+    detail: site.detail,
+    proxyMode: site.proxyMode,
+  }));
 }
 
 export const API_CONFIG = {
@@ -248,9 +277,10 @@ async function getInitConfig(
     }
   }
 
-  // 优先从环境变量读取配置
+  // 配置优先级：外部订阅/环境变量/数据库传入配置，最后回退到项目内置配置。
   const envConfig = process.env.INIT_CONFIG || '';
-  const configSource = envConfig || configFile;
+  const configSource =
+    envConfig || configFile || JSON.stringify(BUILTIN_SOURCE_CONFIG);
 
   try {
     cfgFile = JSON.parse(configSource) as ConfigFileStruct;
@@ -430,9 +460,9 @@ export async function getConfig(): Promise<AdminConfig> {
   configInitPromise = (async () => {
     const storageType = process.env.NEXT_PUBLIC_STORAGE_TYPE || 'localstorage';
 
-    // localStorage 模式下直接从环境变量初始化
+    // localStorage 模式下使用环境变量配置；未提供时使用项目内置配置。
     if (storageType === 'localstorage') {
-      console.log('localStorage 模式：从环境变量初始化配置');
+      console.log('localStorage 模式：初始化内置/环境变量配置');
       const adminConfig = await getInitConfig('');
       cachedConfig = configSelfCheck(adminConfig);
       configInitPromise = null;
@@ -1195,18 +1225,28 @@ export async function getCacheTime(): Promise<number> {
   return config.SiteConfig.SiteInterfaceCacheTime || 7200;
 }
 
+/**
+ * 返回当前浏览器所选择配置集中的可用采集源，并继续应用特殊源和用户权限过滤。
+ * API 路由应显式传入从请求 Cookie 解析出的 sourceSet；未传入时使用默认源。
+ */
 export async function getAvailableApiSites(
   user?: string,
-  includeSpecialSources = false
+  includeSpecialSources = false,
+  sourceSet?: PlaybackSourceSet
 ): Promise<ApiSite[]> {
   const config = await getConfig();
+  const activeSourceSet = sourceSet || 'default';
   const specialSourceSet = new Set(config.SpecialSourceApis || []);
   const filterSpecialSources = <T extends { key: string }>(sites: T[]): T[] =>
     includeSpecialSources
       ? sites
       : sites.filter((site) => !specialSourceSet.has(site.key));
+  const configuredSites =
+    activeSourceSet === 'default'
+      ? config.SourceConfig.filter((source) => !source.disabled)
+      : getBuiltinApiSites(activeSourceSet);
   const allApiSites = filterSpecialSources(
-    config.SourceConfig.filter((s) => !s.disabled)
+    configuredSites
   );
 
   if (!user) {

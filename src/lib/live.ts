@@ -4,6 +4,7 @@ import { getConfig } from '@/lib/config';
 import { db } from '@/lib/db';
 
 const defaultUA = 'AptvPlayer/1.4.10';
+const LIVE_PLAYLIST_TIMEOUT_MS = 15000;
 
 export const DEFAULT_LIVE_REFRESH_INTERVAL_HOURS = 12;
 
@@ -86,12 +87,7 @@ export async function refreshLiveChannels(liveInfo: {
     delete cachedLiveChannels[liveInfo.key];
   }
   const ua = liveInfo.ua || defaultUA;
-  const response = await fetch(liveInfo.url, {
-    headers: {
-      'User-Agent': ua,
-    },
-  });
-  const data = await response.text();
+  const data = await fetchLivePlaylist(liveInfo.url, ua);
   const result = isM3UContent(data)
     ? parseM3U(liveInfo.key, data)
     : parseTxtLive(liveInfo.key, data);
@@ -107,6 +103,59 @@ export async function refreshLiveChannels(liveInfo: {
     epgs: epgs,
   };
   return result.channels.length;
+}
+
+/**
+ * 拉取直播订阅文件，并为 raw.githubusercontent.com 提供 jsDelivr 回退地址。
+ * 部分网络环境可以访问 GitHub Pages，但会重置 raw.githubusercontent.com 连接，
+ * 回退地址可以避免所有直播源同时显示“获取频道列表失败”。
+ */
+async function fetchLivePlaylist(url: string, ua: string): Promise<string> {
+  const candidateUrls = [url];
+  const rawGithubMatch = url.match(
+    /^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/i
+  );
+
+  if (rawGithubMatch) {
+    const [, owner, repository, branch, filePath] = rawGithubMatch;
+    candidateUrls.push(
+      `https://cdn.jsdelivr.net/gh/${owner}/${repository}@${branch}/${filePath}`
+    );
+  }
+
+  let lastError: unknown = null;
+  for (const candidateUrl of Array.from(new Set(candidateUrls))) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(
+      () => controller.abort(),
+      LIVE_PLAYLIST_TIMEOUT_MS
+    );
+
+    try {
+      const response = await fetch(candidateUrl, {
+        headers: { 'User-Agent': ua },
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        throw new Error(`直播订阅请求失败: HTTP ${response.status}`);
+      }
+
+      const data = await response.text();
+      if (!data.trim()) {
+        throw new Error('直播订阅内容为空');
+      }
+      return data;
+    } catch (error) {
+      lastError = error;
+      console.warn(`直播订阅地址不可用，尝试下一个地址: ${candidateUrl}`, error);
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error('无法获取直播订阅文件');
 }
 
 async function parseEpg(

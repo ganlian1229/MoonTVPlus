@@ -15,6 +15,11 @@ import {
   savePlayRecord,
   subscribeToDataUpdates,
 } from '@/lib/db.client';
+import {
+  LIVE_SOURCE_COOKIE_NAME,
+  LIVE_SOURCE_STORAGE_KEY,
+  normalizeLiveSourceKey,
+} from '@/lib/live-source-config';
 import { parseCustomTimeFormat } from '@/lib/time';
 import { useLiveSync } from '@/hooks/useLiveSync';
 
@@ -136,6 +141,8 @@ function LivePageClient() {
 
   // 切换直播源状态
   const [isSwitchingSource, setIsSwitchingSource] = useState(false);
+  // 频道请求序号，避免旧直播源请求完成后覆盖新直播源的频道状态。
+  const liveChannelsRequestIdRef = useRef(0);
 
   // 分组相关
   const [groupedChannels, setGroupedChannels] = useState<{ [key: string]: LiveChannel[] }>({});
@@ -370,21 +377,19 @@ function LivePageClient() {
       setLiveSources(sources);
 
       if (sources.length > 0) {
-        // 默认选中第一个源
-        const firstSource = sources[0];
-        if (needLoadSource) {
-          const foundSource = sources.find((s: LiveSource) => s.key === needLoadSource);
-          if (foundSource) {
-            setCurrentSource(foundSource);
-            await fetchChannels(foundSource);
-          } else {
-            setCurrentSource(firstSource);
-            await fetchChannels(firstSource);
-          }
-        } else {
-          setCurrentSource(firstSource);
-          await fetchChannels(firstSource);
-        }
+        // URL 参数优先，其次使用本地设置中保存的默认直播源，最后回退到第一个源。
+        const savedSourceKey = normalizeLiveSourceKey(
+          typeof window !== 'undefined'
+            ? localStorage.getItem(LIVE_SOURCE_STORAGE_KEY)
+            : ''
+        );
+        const selectedSource =
+          sources.find((s: LiveSource) => s.key === needLoadSource) ||
+          sources.find((s: LiveSource) => s.key === savedSourceKey) ||
+          sources[0];
+
+        setCurrentSource(selectedSource);
+        await fetchChannels(selectedSource);
       }
 
       setLoadingStage('ready');
@@ -403,19 +408,31 @@ function LivePageClient() {
 
   // 获取频道列表
   const fetchChannels = async (source: LiveSource) => {
+    const requestId = ++liveChannelsRequestIdRef.current;
+
     try {
       setIsVideoLoading(true);
 
       // 从 cachedLiveChannels 获取频道信息
       const response = await fetch(`/api/live/channels?source=${source.key}`);
       if (!response.ok) {
-        throw new Error('获取频道列表失败');
+        let errorMessage = '获取频道列表失败';
+        try {
+          const errorResult = await response.json();
+          errorMessage = errorResult?.error || errorMessage;
+        } catch {
+          // 服务端返回非 JSON 时保留默认错误信息。
+        }
+        throw new Error(`${errorMessage}（HTTP ${response.status}）`);
       }
 
       const result = await response.json();
       if (!result.success) {
         throw new Error(result.error || '获取频道列表失败');
       }
+
+      // 如果期间已切换到另一个源，忽略这次过期响应。
+      if (requestId !== liveChannelsRequestIdRef.current) return;
 
       const channelsData = result.data;
       if (!channelsData || channelsData.length === 0) {
@@ -540,22 +557,30 @@ function LivePageClient() {
         targetGroup = Object.keys(grouped)[0] || '';
       }
 
-      // 先设置过滤后的频道列表，但不设置选中的分组
+      // 切换源时直接同步选中新的首个分组，不能依赖 disabled 按钮的 click 事件。
+      // 切换状态期间分组按钮是 disabled，调用 button.click() 不会触发分组更新。
+      setSelectedGroup(targetGroup);
       setFilteredChannels(targetGroup ? grouped[targetGroup] : channels);
 
-      // 触发模拟点击分组，让模拟点击来设置分组状态和触发滚动
+      // 分组按钮渲染后仅负责滚动到当前分组，不再用模拟点击驱动状态。
       if (targetGroup) {
         // 确保切换到频道tab
         setActiveTab('channels');
 
         // 使用更长的延迟，确保状态更新和DOM渲染完成
         setTimeout(() => {
-          simulateGroupClick(targetGroup);
+          const targetGroupIndex = Object.keys(grouped).indexOf(targetGroup);
+          groupButtonRefs.current[targetGroupIndex]?.scrollIntoView({
+            behavior: 'smooth',
+            block: 'nearest',
+            inline: 'center',
+          });
         }, 500); // 增加延迟时间，确保状态更新和DOM渲染完成
       }
 
       setIsVideoLoading(false);
     } catch (err) {
+      if (requestId !== liveChannelsRequestIdRef.current) return;
       console.error('获取频道列表失败:', err);
       // 不设置错误，而是设置空频道列表
       setCurrentChannels([]);
@@ -592,6 +617,10 @@ function LivePageClient() {
       setSearchKeyword('');
 
       setCurrentSource(source);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(LIVE_SOURCE_STORAGE_KEY, source.key);
+        document.cookie = `${LIVE_SOURCE_COOKIE_NAME}=${encodeURIComponent(source.key)}; Path=/; Max-Age=31536000; SameSite=Lax`;
+      }
       await fetchChannels(source);
 
       // 更新URL参数 - 切换直播源时清除频道id，因为新的直播源会有不同的频道列表
@@ -718,31 +747,6 @@ function LivePageClient() {
         top: Math.max(0, scrollTop),
         behavior: 'smooth'
       });
-    }
-  };
-
-  // 模拟点击分组的函数
-  const simulateGroupClick = (group: string, retryCount = 0) => {
-    if (!groupContainerRef.current) {
-      if (retryCount < 10) {
-        setTimeout(() => {
-          simulateGroupClick(group, retryCount + 1);
-        }, 200);
-        return;
-      } else {
-        return;
-      }
-    }
-
-    // 直接通过 data-group 属性查找目标按钮
-    const targetButton = groupContainerRef.current.querySelector(`[data-group="${group}"]`) as HTMLButtonElement;
-
-    if (targetButton) {
-      // 手动设置分组状态，确保状态一致性
-      setSelectedGroup(group);
-
-      // 触发点击事件
-      (targetButton as HTMLButtonElement).click();
     }
   };
 

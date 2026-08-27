@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getAvailableApiSites, getCacheTime, getConfig } from '@/lib/config';
+import { getAvailableApiSites, getConfig } from '@/lib/config';
 import { getDetailFromApi } from '@/lib/downstream';
+import {
+  getPlaybackSourceSetFromCookieValue,
+  PLAYBACK_SOURCE_SET_COOKIE_NAME,
+} from '@/lib/playback-source-set';
 import {
   executeSavedSourceScript,
   normalizeScriptDetailResult,
@@ -22,6 +26,9 @@ export async function GET(request: NextRequest) {
   const id = searchParams.get('id');
   const sourceCode = searchParams.get('source');
   const includeSpecialSources = searchParams.get('special') === '1';
+  const playbackSourceSet = getPlaybackSourceSetFromCookieValue(
+    request.cookies.get(PLAYBACK_SOURCE_SET_COOKIE_NAME)?.value
+  );
 
   if (!id || !sourceCode) {
     return NextResponse.json({ error: '缺少必要参数' }, { status: 400 });
@@ -252,7 +259,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const apiSites = await getAvailableApiSites(authInfo.username, includeSpecialSources);
+    const apiSites = await getAvailableApiSites(
+      authInfo.username,
+      includeSpecialSources,
+      playbackSourceSet
+    );
     const apiSite = apiSites.find((site) => site.key === sourceCode);
 
     if (!apiSite) {
@@ -267,14 +278,10 @@ export async function GET(request: NextRequest) {
       proxyMode: apiSite.proxyMode || false,
     };
 
-    const cacheTime = await getCacheTime();
-
     return NextResponse.json(resultWithProxy, {
       headers: {
-        'Cache-Control': `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
-        'CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-        'Vercel-CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-        'Netlify-Vary': 'query',
+        'Cache-Control': 'private, no-store',
+        Vary: 'Cookie',
       },
     });
   } catch (error) {

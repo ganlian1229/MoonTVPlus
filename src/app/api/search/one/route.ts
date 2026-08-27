@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthInfoFromCookie } from '@/lib/auth';
-import { getAvailableApiSites, getCacheTime, getConfig } from '@/lib/config';
+import { getAvailableApiSites, getConfig } from '@/lib/config';
 import { searchFromApi } from '@/lib/downstream';
+import {
+  getPlaybackSourceSetFromCookieValue,
+  PLAYBACK_SOURCE_SET_COOKIE_NAME,
+} from '@/lib/playback-source-set';
 import {
   executeSavedSourceScript,
   listEnabledSourceScripts,
@@ -23,24 +27,28 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
   const resourceId = searchParams.get('resourceId');
+  const playbackSourceSet = getPlaybackSourceSetFromCookieValue(
+    request.cookies.get(PLAYBACK_SOURCE_SET_COOKIE_NAME)?.value
+  );
 
   if (!query || !resourceId) {
-    const cacheTime = await getCacheTime();
     return NextResponse.json(
       { result: null, error: '缺少必要参数: q 或 resourceId' },
       {
         headers: {
-          'Cache-Control': `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
-          'CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-          'Vercel-CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-          'Netlify-Vary': 'query',
+          'Cache-Control': 'private, no-store',
+          Vary: 'Cookie',
         },
       }
     );
   }
 
   const config = await getConfig();
-  const apiSites = await getAvailableApiSites(authInfo.username);
+  const apiSites = await getAvailableApiSites(
+    authInfo.username,
+    false,
+    playbackSourceSet
+  );
 
   try {
     const enabledScripts = await listEnabledSourceScripts();
@@ -75,14 +83,16 @@ export async function GET(request: NextRequest) {
       );
 
       let result = scriptResults.flat().filter((r) => r.title === query);
-      if (!config.SiteConfig.DisableYellowFilter) {
+      if (
+        playbackSourceSet !== 'adult' &&
+        !config.SiteConfig.DisableYellowFilter
+      ) {
         result = result.filter((item) => {
           const typeName = item.type_name || '';
           return !yellowWords.some((word: string) => typeName.includes(word));
         });
       }
 
-      const cacheTime = await getCacheTime();
       if (result.length === 0) {
         return NextResponse.json(
           {
@@ -97,10 +107,8 @@ export async function GET(request: NextRequest) {
         { results: result },
         {
           headers: {
-            'Cache-Control': `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
-            'CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-            'Vercel-CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-            'Netlify-Vary': 'query',
+            'Cache-Control': 'private, no-store',
+            Vary: 'Cookie',
           },
         }
       );
@@ -120,14 +128,15 @@ export async function GET(request: NextRequest) {
 
     const results = await searchFromApi(targetSite, query);
     let result = results.filter((r) => r.title === query);
-    if (!config.SiteConfig.DisableYellowFilter) {
+    if (
+      playbackSourceSet !== 'adult' &&
+      !config.SiteConfig.DisableYellowFilter
+    ) {
       result = result.filter((result) => {
         const typeName = result.type_name || '';
         return !yellowWords.some((word: string) => typeName.includes(word));
       });
     }
-    const cacheTime = await getCacheTime();
-
     if (result.length === 0) {
       return NextResponse.json(
         {
@@ -141,10 +150,8 @@ export async function GET(request: NextRequest) {
         { results: result },
         {
           headers: {
-            'Cache-Control': `public, max-age=${cacheTime}, s-maxage=${cacheTime}`,
-            'CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-            'Vercel-CDN-Cache-Control': `public, s-maxage=${cacheTime}`,
-            'Netlify-Vary': 'query',
+            'Cache-Control': 'private, no-store',
+            Vary: 'Cookie',
           },
         }
       );

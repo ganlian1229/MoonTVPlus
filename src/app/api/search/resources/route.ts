@@ -3,6 +3,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getAvailableApiSites } from '@/lib/config';
+import {
+  getPlaybackSourceSetFromCookieValue,
+  PLAYBACK_SOURCE_SET_COOKIE_NAME,
+} from '@/lib/playback-source-set';
 import { listEnabledSourceScripts } from '@/lib/source-script';
 
 export const runtime = 'nodejs';
@@ -11,7 +15,14 @@ export const runtime = 'nodejs';
 export async function GET(request: NextRequest) {
   console.log('request', request.url);
   try {
-    const apiSites = await getAvailableApiSites();
+    const playbackSourceSet = getPlaybackSourceSetFromCookieValue(
+      request.cookies.get(PLAYBACK_SOURCE_SET_COOKIE_NAME)?.value
+    );
+    const apiSites = await getAvailableApiSites(
+      undefined,
+      false,
+      playbackSourceSet
+    );
     const scriptSites = (await listEnabledSourceScripts()).map((item) => ({
       key: item.key,
       name: item.name,
